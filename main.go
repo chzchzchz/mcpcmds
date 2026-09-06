@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/exec"
+	"strings"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -51,20 +53,13 @@ func main() {
 	s := server.NewMCPServer(
 		"mcpcmds",
 		"1.0.0",
-		server.WithToolCapabilities(false),
+		server.WithToolCapabilities(true),
+		server.WithTitle(config.Title),
+		server.WithDescription(config.Desc),
 	)
 
-	// Add tool
-	tool := mcp.NewTool("hello_world",
-		mcp.WithDescription("Say hello to someone"),
-		mcp.WithString("name",
-			mcp.Required(),
-			mcp.Description("Name of the person to greet"),
-		),
-	)
-
-	// Add tool handler
-	s.AddTool(tool, helloHandler)
+	// Add tools from config
+	addTools(s, config)
 
 	// Start the stdio server
 	if err := server.ServeStdio(s); err != nil {
@@ -72,11 +67,67 @@ func main() {
 	}
 }
 
-func helloHandler(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	name, err := request.RequireString("name")
-	if err != nil {
-		return mcp.NewToolResultError(err.Error()), nil
-	}
+func toolHandler(tool Tool) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		args := make(map[string]string)
+		for _, a := range tool.Required {
+			val, err := request.RequireString(a.Name)
+			if err != nil {
+				return mcp.NewToolResultError(err.Error()), nil
+			}
+			args[a.Name] = val
+		}
+		for _, a := range tool.Optional {
+			args[a.Name] = mcp.ParseString(request, a.Name, "")
+		}
 
-	return mcp.NewToolResultText(fmt.Sprintf("Hello, %s!", name)), nil
+		cmdArgs := make([]string, len(tool.Command))
+		for i, arg := range tool.Command {
+			cmdArgs[i] = replacePlaceholders(arg, args)
+		}
+
+		command := exec.Command(cmdArgs[0], cmdArgs[1:]...)
+		output, err := command.Output()
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		return mcp.NewToolResultText(string(output)), nil
+	}
+}
+
+func replacePlaceholders(s string, args map[string]string) string {
+	var b strings.Builder
+	for {
+		start := strings.Index(s, "${")
+		if start == -1 {
+			b.WriteString(s)
+			break
+		}
+		end := strings.Index(s[start+2:], "}")
+		if end == -1 {
+			b.WriteString(s)
+			break
+		}
+		key := s[start+2 : start+2+end]
+		b.WriteString(s[:start])
+		if val, ok := args[key]; ok {
+			b.WriteString(val)
+		}
+		s = s[start+2+end+1:]
+	}
+	return b.String()
+}
+
+func addTools(s *server.MCPServer, config Config) {
+	for _, tool := range config.Tools {
+		opts := []mcp.ToolOption{mcp.WithDescription(tool.Name)}
+		for _, a := range tool.Required {
+			opts = append(opts, mcp.WithString(a.Name, mcp.Required(), mcp.Description(a.Desc)))
+		}
+		for _, a := range tool.Optional {
+			opts = append(opts, mcp.WithString(a.Name, mcp.Description(a.Desc)))
+		}
+		s.AddTool(mcp.NewTool(tool.Name, opts...), toolHandler(tool))
+	}
 }
