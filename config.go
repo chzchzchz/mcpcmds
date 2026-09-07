@@ -14,7 +14,7 @@ type Argument struct {
 type Tool struct {
 	Name     string     `json:"name"`
 	Title    string     `json:"title"`
-	Desc     []string   `json:"desc"`
+	Desc     string     `json:"desc"`
 	Required []Argument `json:"required"`
 	Optional []Argument `json:"optional"`
 	Command  []string   `json:"command"`

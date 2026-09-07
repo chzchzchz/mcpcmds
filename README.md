@@ -21,12 +21,12 @@ The config file is a JSON object with the following structure:
 ```json
 {
   "title": "My MCP Server",
-  "desc": ["A collection of shell commands exposed as MCP tools"],
+  "desc": "A collection of shell commands exposed as MCP tools",
   "tools": [
     {
       "name": "echo",
       "title": "Echo",
-      "desc": ["Echoes a message back", "A longer description"],
+      "desc": "Echoes a message back",
       "required": [
         {"name": "message", "desc": "The message to echo"}
       ],
@@ -38,7 +38,7 @@ The config file is a JSON object with the following structure:
     {
       "name": "grep",
       "title": "Grep",
-      "desc": ["Search for a pattern in a file"],
+      "desc": "Search for a pattern in a file",
       "required": [
         {"name": "pattern", "desc": "The regex pattern to search for"},
         {"name": "file", "desc": "The file to search in"}
@@ -48,7 +48,7 @@ The config file is a JSON object with the following structure:
     {
       "name": "cat",
       "title": "Cat",
-      "desc": ["Concatenate and display files"],
+      "desc": "Concatenate and display files",
       "required": [
         {"name": "file", "desc": "The file to display"}
       ],
@@ -67,7 +67,7 @@ The config file is a JSON object with the following structure:
 **Tool**
 - `name` — The tool name used in MCP calls (required)
 - `title` — Human-readable title
-- `desc` — Slice of description strings
+- `desc` — Tool description
 - `required` — Arguments that must be provided in the request
 - `optional` — Arguments that can be omitted (default to empty string)
 - `command` — The `os/exec` command to run. Supports `${KEY}` placeholders that get replaced with values from the request. Placeholders can appear multiple times and anywhere in the string.

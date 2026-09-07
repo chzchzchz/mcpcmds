@@ -121,7 +121,7 @@ func replacePlaceholders(s string, args map[string]string) string {
 
 func addTools(s *server.MCPServer, config Config) {
 	for _, tool := range config.Tools {
-		opts := []mcp.ToolOption{mcp.WithDescription(tool.Name)}
+		opts := []mcp.ToolOption{mcp.WithDescription(tool.Desc)}
 		for _, a := range tool.Required {
 			opts = append(opts, mcp.WithString(a.Name, mcp.Required(), mcp.Description(a.Desc)))
 		}
