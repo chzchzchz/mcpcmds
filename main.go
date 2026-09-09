@@ -1,23 +1,27 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"log/slog"
 	"os"
-	"os/exec"
-	"strings"
-
-	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/mark3labs/mcp-go/server"
 )
+
+const logDebug = true
+
+func dbg(msg string) {
+	if logDebug {
+		slog.Debug(msg)
+	}
+}
 
 func main() {
 	var configPath string
 	flag.StringVar(&configPath, "config", "", "configuration file path")
 	flag.StringVar(&configPath, "c", "", "configuration file path (shorthand)")
+	var mode string
+	flag.StringVar(&mode, "mode", "mark3labs", "server implementation mode: mark3labs or gosdk")
 	var logFilePath string
 	flag.StringVar(&logFilePath, "log-file", "", "log file path")
 	flag.Parse()
@@ -29,9 +33,13 @@ func main() {
 			os.Exit(1)
 		}
 		defer f.Close()
-		slog.SetDefault(slog.New(slog.NewTextHandler(f, nil)))
-		slog.Info("logging initialized", "log-file", logFilePath)
+		slog.SetDefault(slog.New(slog.NewTextHandler(f, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	} else {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
 	}
+	slog.Info("logging initialized", "log-file", logFilePath)
+
+	slog.Info("mcpcmds starting", "pid", os.Getpid(), "mode", mode)
 
 	var config Config
 	if configPath != "" {
@@ -49,85 +57,10 @@ func main() {
 		slog.Info("config loaded", "path", configPath, "tools", len(config.Tools))
 	}
 
-	// Create a new MCP server
-	s := server.NewMCPServer(
-		"mcpcmds",
-		"1.0.0",
-		server.WithToolCapabilities(true),
-		server.WithTitle(config.Title),
-		server.WithDescription(config.Desc),
-	)
-
-	// Add tools from config
-	addTools(s, config)
-
-	// Start the stdio server
-	if err := server.ServeStdio(s); err != nil {
-		fmt.Printf("Server error: %v\n", err)
-	}
-}
-
-func toolHandler(tool Tool) func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		args := make(map[string]string)
-		for _, a := range tool.Required {
-			val, err := request.RequireString(a.Name)
-			if err != nil {
-				return mcp.NewToolResultError(err.Error()), nil
-			}
-			args[a.Name] = val
-		}
-		for _, a := range tool.Optional {
-			args[a.Name] = mcp.ParseString(request, a.Name, "")
-		}
-
-		cmdArgs := make([]string, len(tool.Command))
-		for i, arg := range tool.Command {
-			cmdArgs[i] = replacePlaceholders(arg, args)
-		}
-
-		command := exec.Command(cmdArgs[0], cmdArgs[1:]...)
-		output, err := command.Output()
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-
-		return mcp.NewToolResultText(string(output)), nil
-	}
-}
-
-func replacePlaceholders(s string, args map[string]string) string {
-	var b strings.Builder
-	for {
-		start := strings.Index(s, "${")
-		if start == -1 {
-			b.WriteString(s)
-			break
-		}
-		end := strings.Index(s[start+2:], "}")
-		if end == -1 {
-			b.WriteString(s)
-			break
-		}
-		key := s[start+2 : start+2+end]
-		b.WriteString(s[:start])
-		if val, ok := args[key]; ok {
-			b.WriteString(val)
-		}
-		s = s[start+2+end+1:]
-	}
-	return b.String()
-}
-
-func addTools(s *server.MCPServer, config Config) {
-	for _, tool := range config.Tools {
-		opts := []mcp.ToolOption{mcp.WithDescription(tool.Desc)}
-		for _, a := range tool.Required {
-			opts = append(opts, mcp.WithString(a.Name, mcp.Required(), mcp.Description(a.Desc)))
-		}
-		for _, a := range tool.Optional {
-			opts = append(opts, mcp.WithString(a.Name, mcp.Description(a.Desc)))
-		}
-		s.AddTool(mcp.NewTool(tool.Name, opts...), toolHandler(tool))
+	switch mode {
+	case "gosdk":
+		runGoSDK(config)
+	default:
+		runMark3Labs(config)
 	}
 }

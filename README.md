@@ -14,6 +14,28 @@ Or with a log file:
 mcpcmds -config config.json -log-file server.log
 ```
 
+Or using the go-sdk server implementation:
+
+```bash
+mcpcmds -config config.json -mode gosdk
+```
+
+## Flags
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-config`, `-c` | — | Configuration file path |
+| `-mode` | `mark3labs` | Server implementation: `mark3labs` or `gosdk` |
+| `-log-file` | — | Log file path (stdout/stderr if omitted) |
+
+## Server modes
+
+### `mark3labs` (default)
+Uses the [mark3labs/mcp-go](https://github.com/mark3labs/mcp-go) library. This is the original implementation. Some MCP clients may not fully support its protocol responses.
+
+### `gosdk`
+Uses the [modelcontextprotocol/go-sdk](https://github.com/modelcontextprotocol/go-sdk) library. This provides full compatibility with clients that expect the standard MCP protocol responses (e.g., proper JSON-RPC `id` fields in responses).
+
 ## Configuration
 
 The config file is a JSON object with the following structure:
